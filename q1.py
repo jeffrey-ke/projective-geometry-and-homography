@@ -20,7 +20,9 @@ def affine_rect(lines):
     normalized = np.array(list(map(utils.normalize, lines))) # assume 8 lines, p2
     inf_point1 = np.cross(normalized[0], normalized[1])
     inf_point2 = np.cross(normalized[2], normalized[3])
-    image_infinity = np.cross(inf_point1, inf_point2)
+    image_infinity = utils.normalize(
+        np.cross(inf_point1, inf_point2)
+    )
     H = np.eye(3)
     H[-1,:] = image_infinity
     return H
@@ -55,7 +57,6 @@ def load_annotated(path):
 
 def main(data_path: str = "data", output_path: str = "output") :
     imgs_annos = load_annotated(data_path)
-    pdb.set_trace()
     Path(output_path).mkdir(exist_ok=True)
     for img_name, img, _, lines in map(astuple, imgs_annos):
         H = affine_rect(lines)
