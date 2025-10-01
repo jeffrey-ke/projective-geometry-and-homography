@@ -62,7 +62,7 @@ def main(data_path: str = "data", output_path: str = "output"):
         H_m_inv = np.linalg.inv(H_m)
         # H_m_inv /= H_m_inv[2,2]
         metric_img = utils.MyWarp(img, H_m @ H_a) # wonder what would happen if I did MyWarp(img, H_m @ H_a)
-        metric_lines = affine_lines @ (H_m_inv)
+        metric_lines = lines_met @ (H_m_inv)
         cv2.imwrite(
             str(
                     (Path(output_path) / f"{img_name}_metric").with_suffix(".jpg")
@@ -71,9 +71,9 @@ def main(data_path: str = "data", output_path: str = "output"):
         )
         metric_angles = (utils.cosine(*metric_lines[4:6, :]), utils.cosine(*metric_lines[6:8, :]))
 
-        with open(Path(output_path) / "q2out.txt", "w") as f:
-            f.write(f"Affine angles: {affine_angles[0]}, {affine_angles[1]}")
-            f.write(f"Metric angles: {metric_angles[0]}, {metric_angles[1]}")
+        with open(Path(output_path) / f"{img_name}_q2out.txt", "w") as f:
+            f.write(f"Affine angles: {affine_angles[0]}, {affine_angles[1]}\n")
+            f.write(f"Metric angles: {metric_angles[0]}, {metric_angles[1]}\n")
 
 
 if __name__ == "__main__":
