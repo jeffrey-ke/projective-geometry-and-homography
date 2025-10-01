@@ -34,8 +34,8 @@ class ImageAnno:
     points: np.ndarray
     lines: np.ndarray
 
-def load_annotated(path):
-    with open(f'{path}/annotation/q1_annotation.npy','rb') as f:
+def load_annotated(path, q):
+    with open(f'{path}/annotation/{q}_annotation.npy','rb') as f:
         q1_annotation = np.load(f, allow_pickle=True).item()
     img_dir = Path(path) / "q1"
     for img_name, points in q1_annotation.items():
@@ -56,7 +56,7 @@ def load_annotated(path):
         )
 
 def main(data_path: str = "data", output_path: str = "output") :
-    imgs_annos = load_annotated(data_path)
+    imgs_annos = load_annotated(data_path, "q1")
     Path(output_path).mkdir(exist_ok=True)
     for img_name, img, _, lines in map(astuple, imgs_annos):
         eval_lines = lines[4:]
