@@ -59,12 +59,26 @@ def main(data_path: str = "data", output_path: str = "output") :
     imgs_annos = load_annotated(data_path)
     Path(output_path).mkdir(exist_ok=True)
     for img_name, img, _, lines in map(astuple, imgs_annos):
+        eval_lines = lines[4:]
+
+        before_eval_angles = (utils.cosine(*eval_lines[0:2]), utils.cosine(*eval_lines[2:]))
         H = affine_rect(lines)
+        H_inv = np.linalg.inv(H)
         warped = utils.MyWarp(img, H)
+        warped_lines = eval_lines @ H_inv
         cv2.imwrite(
             (Path(output_path) / img_name).with_suffix(".jpg"),
             warped
         )
+        after_eval_angles = (utils.cosine(*warped_lines[0:2]), utils.cosine(*warped_lines[2:]))
+        with open(Path(output_path) / "q1out.txt", "w") as f:
+            f.write(f"Angle 1 Before: {before_eval_angles[0]}\n")
+            f.write(f"Angle 2 Before: {before_eval_angles[1]}\n")
+            f.write(f"Angle 1 After: {after_eval_angles[0]}\n")
+            f.write(f"Angle 2 After: {after_eval_angles[1]}\n")
+
+        
+
 
 if __name__ == "__main__":
     tyro.cli(main)
