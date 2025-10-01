@@ -53,17 +53,17 @@ def load_point_anno(path, normalize=True):
         )
 
 def create_A_i(point_normal, point_persp):
-    x,y,w = point_normal
-    point_persp = point_persp.reshape(1,3)
+    x,y,w = point_persp
+    point_normal = point_normal.reshape(1,3)
     A_i = np.zeros((2,9))
-    A_i[0, 3:6] = -w * point_persp
-    A_i[0, 6:9] = y * point_persp
-    A_i[1, 0:3] = w * point_persp
-    A_i[1, 6:9] = -x * point_persp
+    A_i[0, 3:6] = -w * point_normal
+    A_i[0, 6:9] = y * point_normal
+    A_i[1, 0:3] = w * point_normal
+    A_i[1, 6:9] = -x * point_normal
     return A_i
 
 def main(data_path: str = "data", output_path: str = "output"):
-    img_annos = load_point_anno(data_path, normalize=False)
+    img_annos = load_point_anno(data_path, )
     for img_name, image_normal, image_pers, points_normal, points_persp in map(astuple, img_annos):
         A = np.concatenate(
             (*[create_A_i(p_n, p_p) for p_n, p_p in zip(points_normal, points_persp)],),
@@ -77,9 +77,8 @@ def main(data_path: str = "data", output_path: str = "output"):
             h[6:9]
         ])
         H /= H[-1,-1]
-        height_pers, width_pers = image_pers.shape[:-1]
-        warped_img = utils.MyWarp(image_normal, H)
-        warped_img = cv2.resize(warped_img, (width_pers, height_pers))
+        warped_img = cv2.warpPerspective(image_normal, H, image_pers.shape[:-1][::-1])
+        # warped_img = cv2.resize(warped_img, (width_pers, height_pers))
         warped_points = points_normal @ H
         cv2.imwrite(
             os.path.join(output_path, f"q3_{img_name}_warped.png"),
