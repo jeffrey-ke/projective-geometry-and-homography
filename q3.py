@@ -1,9 +1,13 @@
 from dataclasses import astuple, dataclass
+import pdb
+import os
 from pathlib import Path
 
 import numpy as np
 import cv2
 import tyro
+
+import utils
 
 @dataclass
 class PointAnno:
@@ -13,18 +17,32 @@ class PointAnno:
     points_normal: np.ndarray
     points_perspective: np.ndarray
 
-def load_point_anno(path):
+def load_point_anno(path, normalize=True):
     obj = np.load(Path(path) / "annotation" / "q3_annotation.npy", allow_pickle=True).item()
     for img_name, points_persp in obj.items():
         img_id = img_name.split("-")[0]
         img_normal = cv2.imread(str(Path(path) / "q3" / f"{img_id}-normal.png"))
-        w, h = img_normal.shape[:-1]
-        points_normal = np.array([
-            [0,0],
-            [0, h],
-            [w,h],
-            [w,0],
-        ])
+        h, w = img_normal.shape[:-1]
+        points_normal = np.array([[0,0,1],[w,0,1],[w,h,1],[0,h,1],])
+        points_persp = np.concatenate((points_persp, np.ones_like(points_persp[..., :1])), axis=-1)
+
+        if normalize:
+            points_normal = np.array(
+                    list(
+                        map(
+                            utils.normalize,
+                            points_normal
+                        )
+                    )
+            )
+            points_persp = np.array(
+                list(
+                        map(
+                            utils.normalize,
+                            points_persp
+                        )
+                )
+            )
 
         yield PointAnno(
             img_name,
@@ -34,12 +52,39 @@ def load_point_anno(path):
             points_persp,
         )
 
-def main(data_path: str, output_path: str):
-    img_annos = load_point_anno(data_path)
+def create_A_i(point_normal, point_persp):
+    x,y,w = point_normal
+    point_persp = point_persp.reshape(1,3)
+    A_i = np.zeros((2,9))
+    A_i[0, 3:6] = -w * point_persp
+    A_i[0, 6:9] = y * point_persp
+    A_i[1, 0:3] = w * point_persp
+    A_i[1, 6:9] = -x * point_persp
+    return A_i
+
+def main(data_path: str = "data", output_path: str = "output"):
+    img_annos = load_point_anno(data_path, normalize=False)
     for img_name, image_normal, image_pers, points_normal, points_persp in map(astuple, img_annos):
-        pass
-
-
+        A = np.concatenate(
+            (*[create_A_i(p_n, p_p) for p_n, p_p in zip(points_normal, points_persp)],),
+            axis=0
+        )
+        _, E, Vh = np.linalg.svd(A)
+        h = Vh[-1]
+        H = np.array([
+            h[0:3],
+            h[3:6],
+            h[6:9]
+        ])
+        H /= H[-1,-1]
+        height_pers, width_pers = image_pers.shape[:-1]
+        warped_img = utils.MyWarp(image_normal, H)
+        warped_img = cv2.resize(warped_img, (width_pers, height_pers))
+        warped_points = points_normal @ H
+        cv2.imwrite(
+            os.path.join(output_path, f"q3_{img_name}_warped.png"),
+            warped_img
+        )
 
 if __name__ == "__main__":
     tyro.cli(main)

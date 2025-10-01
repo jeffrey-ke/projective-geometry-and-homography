@@ -5,7 +5,7 @@ import cv2
 
 
 def normalize(v):
-    return v / np.sqrt(v[0]**2 + v[1]**2 + v[2]**2)
+    return v / max(np.sqrt(v[0]**2 + v[1]**2 + v[2]**2), np.finfo(np.float32).eps)
 
 
 def MyWarp(img, H):
