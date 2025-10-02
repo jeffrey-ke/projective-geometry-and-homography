@@ -59,14 +59,14 @@ def add_lines(img, points, seed):
     rng = np.random.default_rng(seed=seed)
     for (x11,y11),(x12,y12),(x21,y21),(x22,y22) in points:
         color = rng.uniform(0, 255, (3,)).astype(int).tolist()
-        cv2.line(img, (x11,y11), (x12,y12), color, 9)
-        cv2.line(img, (x21,y21), (x22,y22), color, 9)
+        cv2.line(img, (x11,y11), (x12,y12), color, 21)
+        cv2.line(img, (x21,y21), (x22,y22), color, 21)
     return img
 
 
-def main(data_path: str = "data", output_path: str = "output") :
+def main(data_path: str = "data", output_path: str = "output/q1") :
     imgs_annos = load_annotated(data_path, "q1")
-    Path(output_path).mkdir(exist_ok=True)
+    Path(output_path).mkdir(exist_ok=True, parents=True)
     for img_name, img, points, lines in map(astuple, imgs_annos):
         eval_lines = lines[4:]
 
