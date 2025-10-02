@@ -61,7 +61,6 @@ def main(data_path: str = "data", output_path: str = "output/q2"):
 
         H_m = metric_from_affine(perpendicular_lines_affine)
         H_m_inv = np.linalg.inv(H_m)
-
         Ht, metric_img = utils.MyWarp(perp.img, H_m @ a2m @ H_a) # wonder what would happen if I did MyWarp(img, H_m @ H_a)
         perpendicular_lines_metric = perpendicular_lines_affine @ (H_m_inv)
         perpendicular_points_metric = perpendicular_points_affine @ (H_m_inv).T
@@ -72,7 +71,7 @@ def main(data_path: str = "data", output_path: str = "output/q2"):
         metric_angles = (utils.cosine(*perpendicular_lines_metric[4:6, :]), utils.cosine(*perpendicular_lines_metric[6:8, :]))
 
         with open(Path(output_path) / f"{perp.name}_q2out.txt", "w") as f:
-            # f.write(f"Affine angles: {affine_angles[0]}, {affine_angles[1]}\n")
+            f.write(f"Unrectified angles: {unrect_angles[0]}, {unrect_angles[1]}\n")
             f.write(f"Metric angles: {metric_angles[0]}, {metric_angles[1]}\n")
 
 

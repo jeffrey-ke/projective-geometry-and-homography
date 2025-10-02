@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+import pdb
 from pathlib import Path
 
 from PIL import Image
@@ -106,24 +107,24 @@ def write_results(img_orig, img_warped, points_orig, points_warped, output_path,
             str(
                 (Path(output_path) / f"{name}_unrectified_train_{tag}").with_suffix(".jpg")
             ),
-            add_lines(img_orig, points_orig[:8], seed=10)
+            add_lines(img_orig.copy(), points_orig[:8], seed=10)
         )
         cv2.imwrite(
             str(
                 (Path(output_path) / f"{name}_unrectified_eval_{tag}").with_suffix(".jpg")
             ),
-            add_lines(img_orig, points_orig[8:], seed=10)
+            add_lines(img_orig.copy(), points_orig[8:], seed=10)
         )
 
     cv2.imwrite(
         str(
             (Path(output_path) / f"{name}_rectified_train_{tag}").with_suffix(".jpg")
         ),
-        add_lines(img_warped, points_warped[:8], seed=10)
+        add_lines(img_warped.copy(), points_warped[:8], seed=10)
     )
     cv2.imwrite(
         str(
             (Path(output_path) / f"{name}_rectified_eval_{tag}").with_suffix(".jpg")
         ),
-        add_lines(img_warped, points_warped[8:], seed=10)
+        add_lines(img_warped.copy(), points_warped[8:], seed=10)
     )
