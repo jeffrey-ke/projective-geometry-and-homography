@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 from dataclasses import astuple, dataclass
 import pdb
 import os
@@ -76,9 +78,8 @@ def main(data_path: str = "data", output_path: str = "output"):
             h[3:6],
             h[6:9]
         ])
-        H /= H[-1,-1]
         warped_img = cv2.warpPerspective(image_normal, H, image_pers.shape[:-1][::-1])
-        # warped_img = cv2.resize(warped_img, (width_pers, height_pers))
+        warped_img[warped_img == 0] = image_pers[warped_img == 0]
         warped_points = points_normal @ H
         cv2.imwrite(
             os.path.join(output_path, f"q3_{img_name}_warped.png"),
