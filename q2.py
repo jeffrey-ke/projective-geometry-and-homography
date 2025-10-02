@@ -1,5 +1,7 @@
 #!/usr/bin/env python
 from dataclasses import astuple
+from typing import List
+import os
 from pathlib import Path
 import pdb
 
@@ -35,7 +37,7 @@ def metric_from_affine(lines):
     return H_m
 
     
-def main(data_path: str = "data", output_path: str = "output/q2"):
+def q2(data_path: str = "data", output_path: str = "output/q2"):
     Path(output_path).mkdir(parents=True, exist_ok=True)
     imgs_annos_aff = load_annotated(data_path, "q1")
     imgs_annos_met = load_annotated(data_path, "q2")
@@ -74,6 +76,25 @@ def main(data_path: str = "data", output_path: str = "output/q2"):
             f.write(f"Unrectified angles: {unrect_angles[0]}, {unrect_angles[1]}\n")
             f.write(f"Metric angles: {metric_angles[0]}, {metric_angles[1]}\n")
 
+def main(data_path: str = "data", output_path: str = "output/q2", annotate: bool = False, keys_redo: List[str] = []):
+
+    if annotate:
+        data = np.load(Path(data_path) / "annotation" / "q2_annotation.npy", allow_pickle=True).item()
+        keys_in_current = data.keys()
+        keys_in_dir = [key.split(".")[0] for key in os.listdir(Path(data_path) / "q1")]
+        keys_to_add = [key for key in keys_in_dir if (key not in keys_in_current or key in keys_redo)]
+        data.update(
+            {
+                key : np.array(utils.annotate(Path(data_path) / "q1" / f"{key}.jpg"))
+                for key in keys_to_add
+            }
+        )
+        # if keys_remove:
+        #     for k in keys_remove:
+        #         data.pop(k)
+        np.save(Path(data_path) / "annotation" / "q2_annotation.npy", np.array(data))
+    else:
+        q2(data_path, output_path)
 
 if __name__ == "__main__":
     tyro.cli(main)
