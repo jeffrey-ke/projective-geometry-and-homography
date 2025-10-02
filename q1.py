@@ -6,7 +6,6 @@ from dataclasses import dataclass, astuple
 from typing import List, Optional
 
 import numpy as np
-from numpy._core.multiarray import normalize_axis_index
 import cv2
 import pdb
 import tyro
@@ -23,16 +22,6 @@ def affine_rect(lines):
     H = np.eye(3)
     H[-1,:] = image_infinity
     return H
-
-@dataclass
-class ImageAnno:
-    name: str
-    img: np.ndarray
-    raw_points: np.ndarray
-    normalized_points: np.ndarray
-    lines: np.ndarray
-    normalize_T: np.ndarray
-    inv_normalize_T: np.ndarray
 
 def get_T(points):
     centroid = np.mean(points, axis=0, keepdims=True).reshape(2,1) # take the average over the batch dimension
@@ -51,66 +40,58 @@ def load_annotated(path, q):
         num_points = raw_points.shape[0]
         normalize_T = get_T(raw_points)
         raw_points = np.concatenate((raw_points, np.ones_like(raw_points[:,-1:])), axis=-1)
+        raw_points = raw_points.reshape(num_points // 2, 2, 3)
         normalized_points = raw_points @ normalize_T.T
         assert(num_points % 2 == 0)
-        points_reshaped = normalized_points.reshape(num_points // 2, 2, 3)
-        lines = np.cross(
-                points_reshaped[:, 0, :],
-                points_reshaped[:, 1, :]
+        raw_lines = np.cross(
+                raw_points[:, 0, :],
+                raw_points[:, 1, :]
+        )
+        normalized_lines  = np.cross(
+            normalized_points[:, 0, :],
+            normalized_points[:, 1, :]
         )
         img = cv2.imread((img_dir / img_name).with_suffix(".jpg"))
-        yield ImageAnno(
+        raw_points = raw_points.reshape(-1, 3)
+        normalized_points = normalized_points.reshape(-1, 3)
+        yield utils.ImageAnno(
             img_name,
             img,
             raw_points,
             normalized_points,
-            lines,
+            raw_lines,
+            normalized_lines,
             normalize_T,
             np.linalg.inv(normalize_T)
         )
 
-def add_lines(img, points, seed):
-    points = points / points[..., -1:] #TODO: put this in your journal: a good example of broadcasting rules: shape 16x3 / 16x1
-    points = (
-            points.reshape(points.shape[0]//4, 4, 3)
-            [..., :-1]
-            .astype(int)
-    )
-    rng = np.random.default_rng(seed=seed)
-    for (x11,y11),(x12,y12),(x21,y21),(x22,y22) in points:
-        color = rng.uniform(0, 255, (3,)).astype(int).tolist()
-        cv2.line(img, (x11,y11), (x12,y12), color, 21)
-        cv2.line(img, (x21,y21), (x22,y22), color, 21)
-    return img
-
-
 def q1(data_path: str = "data", output_path: str = "output/q1"):
     imgs_annos = load_annotated(data_path, "q1")
     Path(output_path).mkdir(exist_ok=True, parents=True)
-    for img_name, img, raw_points, normalized_points, lines, normalize_T, T_inv in map(astuple, imgs_annos):
-        eval_lines = lines[4:]
+    for img_name, img, raw_points, normalized_points, raw_lines, normalized_lines, normalize_T, T_inv in map(astuple, imgs_annos):
+        eval_lines = raw_lines[4:]
 
         before_eval_angles = (utils.cosine(*eval_lines[0:2]), utils.cosine(*eval_lines[2:]))
-        H = T_inv @ affine_rect(lines) @ normalize_T
+        H = T_inv @ affine_rect(normalized_lines) @ normalize_T
         H_inv = np.linalg.inv(H)
         Ht, warped = utils.MyWarp(img, H)
         warped_lines = eval_lines @ H_inv
         warped_points = raw_points @ (Ht @ H).T
         cv2.imwrite(
             (Path(output_path) / f"{img_name}_train_unrectified").with_suffix(".jpg"),
-            add_lines(img, raw_points[:8], seed=10)
+            utils.add_lines(img, raw_points[:8], seed=10)
         )
         cv2.imwrite(
             (Path(output_path) / f"{img_name}_train_rectified").with_suffix(".jpg"),
-            add_lines(warped, warped_points[:8], seed=10)
+            utils.add_lines(warped, warped_points[:8], seed=10)
         )
         cv2.imwrite(
             (Path(output_path) / f"{img_name}_eval_unrectified").with_suffix(".jpg"),
-            add_lines(img, raw_points[8:], seed=20)
+            utils.add_lines(img, raw_points[8:], seed=20)
         )
         cv2.imwrite(
             (Path(output_path) / f"{img_name}_eval_rectified").with_suffix(".jpg"),
-            add_lines(warped, warped_points[8:], seed=20)
+            utils.add_lines(warped, warped_points[8:], seed=20)
         )
         after_eval_angles = (utils.cosine(*warped_lines[0:2]), utils.cosine(*warped_lines[2:]))
         with open(Path(output_path) / f"q1_{img_name}_out.txt", "w") as f:

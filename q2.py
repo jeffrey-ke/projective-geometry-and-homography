@@ -7,7 +7,7 @@ import numpy as np
 import cv2
 import tyro
 
-from q1 import load_annotated, affine_rect, add_lines
+from q1 import load_annotated, affine_rect 
 import utils
 
 def metric_from_affine(lines):
@@ -40,65 +40,39 @@ def main(data_path: str = "data", output_path: str = "output/q2"):
     imgs_annos_aff = load_annotated(data_path, "q1")
     imgs_annos_met = load_annotated(data_path, "q2")
     
-    for aff_anno, met_anno in zip(imgs_annos_aff, imgs_annos_met):
-        img_name, img, points_aff, lines_aff = astuple(aff_anno)
-        *_, points_met, lines_met = astuple(met_anno)
-        H_a = affine_rect(lines_aff)
-        affine_img = utils.MyWarp(img, H_a)
+    for parallel, perp in zip(imgs_annos_aff, imgs_annos_met):
+
+        H_a = parallel.inv_normalize_T @ affine_rect(parallel.normalized_lines) @ parallel.normalize_T
+        Ht, affine_img = utils.MyWarp(parallel.img, H_a)
         H_a_inv = np.linalg.inv(H_a)
-        # H_a_inv /= H_a_inv[2,2]
 
-        affine_lines = lines_aff @ H_a_inv
-        points_met_affine = points_met @ H_a.T
-        cv2.imwrite(
-            str(
-                (Path(output_path) / f"{img_name}_train_unrectified_affine").with_suffix(".jpg")
-            ),
-            add_lines(img, points_met[:8], seed=10)
-        )
-        cv2.imwrite(
-            str(
-                (Path(output_path) / f"{img_name}_train_rectified_affine").with_suffix(".jpg")
-            ),
-            add_lines(affine_img, points_met_affine[:8], seed=10)
-        )
-        cv2.imwrite(
-            str(
-                (Path(output_path) / f"{img_name}_eval_unrectified_affine").with_suffix(".jpg")
-            ),
-            add_lines(img, points_met[8:], seed=20)
-        )
-        cv2.imwrite(
-            str(
-                (Path(output_path) / f"{img_name}_eval_rectified_affine").with_suffix(".jpg")
-            ),
-            add_lines(affine_img, points_met_affine[8:], seed=20)
-        )
-        affine_angles = (utils.cosine(*affine_lines[4:6, :]), utils.cosine(*affine_lines[6:8, :]))
+        # a2m = utils.anno_to_anno_transform(parallel.raw_points, perp.raw_points)
+        a2m = np.eye(3)
+        m2a = np.eye(3)
+        # m2a = np.linalg.inv(a2m)
 
-        H_m = metric_from_affine(lines_met)
+        perpendicular_lines_unrect = perp.raw_lines
+        perpendicular_lines_affine = perp.raw_lines @ (a2m @ H_a_inv @ m2a)
+
+        perpendicular_points_unrect = perp.raw_points
+        perpendicular_points_affine = perp.raw_points @ (Ht @ a2m @ H_a @ m2a).T
+
+        utils.write_results(perp.img, affine_img, perpendicular_points_unrect, perpendicular_points_affine, output_path, perp.name, tag="affine")
+
+        H_m = metric_from_affine(perpendicular_lines_affine)
         H_m_inv = np.linalg.inv(H_m)
-        # H_m_inv /= H_m_inv[2,2]
-        metric_img = utils.MyWarp(img, H_m @ H_a) # wonder what would happen if I did MyWarp(img, H_m @ H_a)
-        metric_lines = lines_met @ (H_m_inv)
-        points_met_metric = points_met @ H_m_inv.T
-        # pdb.set_trace()
-        cv2.imwrite(
-            str(
-                    (Path(output_path) / f"{img_name}_train_rectified_metric").with_suffix(".jpg")
-            ),
-            add_lines(metric_img, points_met_metric[:8], seed=10)
-        )
-        cv2.imwrite(
-            str(
-                    (Path(output_path) / f"{img_name}_eval_rectified_metric").with_suffix(".jpg")
-            ),
-            add_lines(metric_img, points_met_metric[8:], seed=20)
-        )
-        metric_angles = (utils.cosine(*metric_lines[4:6, :]), utils.cosine(*metric_lines[6:8, :]))
 
-        with open(Path(output_path) / f"{img_name}_q2out.txt", "w") as f:
-            f.write(f"Affine angles: {affine_angles[0]}, {affine_angles[1]}\n")
+        Ht, metric_img = utils.MyWarp(perp.img, H_m @ a2m @ H_a) # wonder what would happen if I did MyWarp(img, H_m @ H_a)
+        perpendicular_lines_metric = perpendicular_lines_affine @ (H_m_inv)
+        perpendicular_points_metric = perpendicular_points_affine @ (H_m_inv).T
+
+        utils.write_results(perp.img, metric_img, perpendicular_points_unrect, perpendicular_points_metric, output_path, perp.name, tag="metric", skip_orig=True)
+
+        unrect_angles = (utils.cosine(*perpendicular_lines_unrect[4:6, :]), utils.cosine(*perpendicular_lines_unrect[6:8, :]))
+        metric_angles = (utils.cosine(*perpendicular_lines_metric[4:6, :]), utils.cosine(*perpendicular_lines_metric[6:8, :]))
+
+        with open(Path(output_path) / f"{perp.name}_q2out.txt", "w") as f:
+            # f.write(f"Affine angles: {affine_angles[0]}, {affine_angles[1]}\n")
             f.write(f"Metric angles: {metric_angles[0]}, {metric_angles[1]}\n")
 
 
