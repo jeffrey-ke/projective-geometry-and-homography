@@ -16,9 +16,10 @@ def MyWarp(img, H):
     [xmax, ymax] = (pts.max(axis=0).ravel() + 0.5).astype(int)
     t = [-xmin, -ymin]
     Ht = np.array([[1, 0, t[0]], [0, 1, t[1]], [0, 0, 1]])
+    # Ht = np.eye(3)
 
     result = cv2.warpPerspective(img, Ht.dot(H), (xmax-xmin, ymax-ymin))
-    return result
+    return Ht, result
 
 
 def cosine(u, v):
@@ -28,15 +29,22 @@ def cosine(u, v):
 def annotate(impath):
     im = Image.open(impath)
     im = np.array(im)
-
+    h,w = im.shape[:-1]
+    print(im.shape[:-1])
+    print(f"height: {h}, width: {w}")
     clicks = []
 
     def click(event):
+        nonlocal clicks
+        if len(clicks) == 16:
+            plt.close()
+            return
         x, y = event.xdata, event.ydata
-        clicks.append([x, y, 1.])
+        print(x,y)
+        clicks.append([x, y])
 
-    fig = plt.figure(1)
-    ax = fig.add_subplot(111)
+
+    fig, ax = plt.subplots(figsize=(w/100, h/100), dpi=100)
     ax.imshow(im)
 
     _ = fig.canvas.mpl_connect('button_press_event', click)

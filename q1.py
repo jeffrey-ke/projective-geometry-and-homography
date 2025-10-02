@@ -1,9 +1,12 @@
 #!/usr/bin/env python
 
+import os
 from pathlib import Path
 from dataclasses import dataclass, astuple
+from typing import List, Optional
 
 import numpy as np
+from numpy._core.multiarray import normalize_axis_index
 import cv2
 import pdb
 import tyro
@@ -25,18 +28,32 @@ def affine_rect(lines):
 class ImageAnno:
     name: str
     img: np.ndarray
-    points: np.ndarray
+    raw_points: np.ndarray
+    normalized_points: np.ndarray
     lines: np.ndarray
+    normalize_T: np.ndarray
+    inv_normalize_T: np.ndarray
+
+def get_T(points):
+    centroid = np.mean(points, axis=0, keepdims=True).reshape(2,1) # take the average over the batch dimension
+    norms = np.linalg.norm(points, axis=-1) # take the norm of the actual vector dimension
+    scale = np.sqrt(2) / np.max(norms)
+    T = np.diag([scale, scale, 1])
+    T[:-1, -1:] = -scale * centroid
+    return T
+
 
 def load_annotated(path, q):
     with open(f'{path}/annotation/{q}_annotation.npy','rb') as f:
         q1_annotation = np.load(f, allow_pickle=True).item()
     img_dir = Path(path) / "q1"
-    for img_name, points in q1_annotation.items():
-        num_points = points.shape[0]
-        points = np.concatenate((points, np.ones_like(points[:,-1:])), axis=-1)
+    for img_name, raw_points in q1_annotation.items():
+        num_points = raw_points.shape[0]
+        normalize_T = get_T(raw_points)
+        raw_points = np.concatenate((raw_points, np.ones_like(raw_points[:,-1:])), axis=-1)
+        normalized_points = raw_points @ normalize_T.T
         assert(num_points % 2 == 0)
-        points_reshaped = points.reshape(num_points // 2, 2, 3)
+        points_reshaped = normalized_points.reshape(num_points // 2, 2, 3)
         lines = np.cross(
                 points_reshaped[:, 0, :],
                 points_reshaped[:, 1, :]
@@ -45,8 +62,11 @@ def load_annotated(path, q):
         yield ImageAnno(
             img_name,
             img,
-            points,
-            lines
+            raw_points,
+            normalized_points,
+            lines,
+            normalize_T,
+            np.linalg.inv(normalize_T)
         )
 
 def add_lines(img, points, seed):
@@ -64,21 +84,21 @@ def add_lines(img, points, seed):
     return img
 
 
-def main(data_path: str = "data", output_path: str = "output/q1") :
+def q1(data_path: str = "data", output_path: str = "output/q1"):
     imgs_annos = load_annotated(data_path, "q1")
     Path(output_path).mkdir(exist_ok=True, parents=True)
-    for img_name, img, points, lines in map(astuple, imgs_annos):
+    for img_name, img, raw_points, normalized_points, lines, normalize_T, T_inv in map(astuple, imgs_annos):
         eval_lines = lines[4:]
 
         before_eval_angles = (utils.cosine(*eval_lines[0:2]), utils.cosine(*eval_lines[2:]))
-        H = affine_rect(lines)
+        H = T_inv @ affine_rect(lines) @ normalize_T
         H_inv = np.linalg.inv(H)
-        warped = utils.MyWarp(img, H)
+        Ht, warped = utils.MyWarp(img, H)
         warped_lines = eval_lines @ H_inv
-        warped_points = points @ H.T
+        warped_points = raw_points @ (Ht @ H).T
         cv2.imwrite(
             (Path(output_path) / f"{img_name}_train_unrectified").with_suffix(".jpg"),
-            add_lines(img, points[:8], seed=10)
+            add_lines(img, raw_points[:8], seed=10)
         )
         cv2.imwrite(
             (Path(output_path) / f"{img_name}_train_rectified").with_suffix(".jpg"),
@@ -86,7 +106,7 @@ def main(data_path: str = "data", output_path: str = "output/q1") :
         )
         cv2.imwrite(
             (Path(output_path) / f"{img_name}_eval_unrectified").with_suffix(".jpg"),
-            add_lines(img, points[8:], seed=20)
+            add_lines(img, raw_points[8:], seed=20)
         )
         cv2.imwrite(
             (Path(output_path) / f"{img_name}_eval_rectified").with_suffix(".jpg"),
@@ -99,7 +119,33 @@ def main(data_path: str = "data", output_path: str = "output/q1") :
             f.write(f"Angle 1 After: {after_eval_angles[0]}\n")
             f.write(f"Angle 2 After: {after_eval_angles[1]}\n")
 
-        
+def main(
+        data_path: str = "data",
+        output_path: str = "output/q1",
+        annotate: bool = False,
+        keys_remove: List[str] = [],
+        keys_redo: List[str] = []
+):
+    if annotate:
+        data = np.load(Path(data_path) / "annotation" / "q1_annotation.npy", allow_pickle=True).item()
+        keys_in_current = data.keys()
+        keys_in_dir = [key.split(".")[0] for key in os.listdir(Path(data_path) / "q1")]
+        keys_to_add = [key for key in keys_in_dir if (key not in keys_in_current or key in keys_redo)]
+        data.update(
+            {
+                key : np.array(utils.annotate(Path(data_path) / "q1" / f"{key}.jpg"))
+                for key in keys_to_add
+            }
+        )
+
+        if keys_remove:
+            for k in keys_remove:
+                data.pop(k)
+        np.save(Path(data_path) / "annotation" / "q1_annotation.npy", np.array(data))
+
+    else:
+        q1(data_path, output_path)
+
 
 
 if __name__ == "__main__":
