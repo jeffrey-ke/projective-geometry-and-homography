@@ -29,7 +29,7 @@ def cosine(u, v):
     return (u[0] * v[0] + u[1] * v[1]) / (np.sqrt(u[0]**2 + u[1]**2) * np.sqrt(v[0]**2 + v[1]**2))
 
 
-def annotate(impath):
+def annotate(impath, num_points=16):
     im = Image.open(impath)
     im = np.array(im)
     h,w = im.shape[:-1]
@@ -39,7 +39,7 @@ def annotate(impath):
 
     def click(event):
         nonlocal clicks
-        if len(clicks) == 16:
+        if len(clicks) == num_points:
             plt.close()
             return
         x, y = event.xdata, event.ydata

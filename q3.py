@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 from dataclasses import astuple, dataclass
+from typing import List
 import pdb
 import os
 from pathlib import Path
@@ -64,27 +65,44 @@ def create_A_i(point_normal, point_persp):
     A_i[1, 6:9] = -x * point_normal
     return A_i
 
-def main(data_path: str = "data", output_path: str = "output"):
-    img_annos = load_point_anno(data_path, )
-    for img_name, image_normal, image_pers, points_normal, points_persp in map(astuple, img_annos):
-        A = np.concatenate(
-            (*[create_A_i(p_n, p_p) for p_n, p_p in zip(points_normal, points_persp)],),
-            axis=0
+def main(data_path: str = "data", output_path: str = "output", annotate=False, keys_redo: List[str] = [], keys_remove: List[str] = []):
+    if annotate:
+        data = np.load(Path(data_path) / "annotation" / "q3_annotation.npy", allow_pickle=True).item()
+        keys_in_current = data.keys()
+        keys_in_dir = [key.split(".")[0] for key in os.listdir(Path(data_path) / "q3") if "perspective" in key]
+        keys_to_add = [key for key in keys_in_dir if (key not in keys_in_current or key in keys_redo)]
+        data.update(
+            {
+                key : np.array(utils.annotate(Path(data_path) / "q3" / f"{key}.png", 4))
+                for key in keys_to_add
+            }
         )
-        _, E, Vh = np.linalg.svd(A)
-        h = Vh[-1]
-        H = np.array([
-            h[0:3],
-            h[3:6],
-            h[6:9]
-        ])
-        warped_img = cv2.warpPerspective(image_normal, H, image_pers.shape[:-1][::-1])
-        warped_img[warped_img == 0] = image_pers[warped_img == 0]
-        warped_points = points_normal @ H
-        cv2.imwrite(
-            os.path.join(output_path, f"q3_{img_name}_warped.png"),
-            warped_img
-        )
+
+        if keys_remove:
+            for k in keys_remove:
+                data.pop(k)
+        np.save(Path(data_path) / "annotation" / "q3_annotation.npy", np.array(data))
+    else:
+        img_annos = load_point_anno(data_path, )
+        for img_name, image_normal, image_pers, points_normal, points_persp in map(astuple, img_annos):
+            A = np.concatenate(
+                (*[create_A_i(p_n, p_p) for p_n, p_p in zip(points_normal, points_persp)],),
+                axis=0
+            )
+            _, E, Vh = np.linalg.svd(A)
+            h = Vh[-1]
+            H = np.array([
+                h[0:3],
+                h[3:6],
+                h[6:9]
+            ])
+            warped_img = cv2.warpPerspective(image_normal, H, image_pers.shape[:-1][::-1])
+            warped_img[warped_img == 0] = image_pers[warped_img == 0]
+            warped_points = points_normal @ H
+            cv2.imwrite(
+                os.path.join(output_path, f"q3_{img_name}_warped.png"),
+                warped_img
+            )
 
 if __name__ == "__main__":
     tyro.cli(main)
