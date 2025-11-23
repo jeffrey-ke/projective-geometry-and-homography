@@ -97,8 +97,21 @@ def main(data_path: str = "data", output_path: str = "output", annotate=False, k
                 h[6:9]
             ])
             warped_img = cv2.warpPerspective(image_normal, H, image_pers.shape[:-1][::-1])
-            warped_img[warped_img == 0] = image_pers[warped_img == 0]
+            warped_img[(warped_img == 0).all(axis=-1)] = image_pers[(warped_img == 0).all(axis=-1)]
             warped_points = points_normal @ H
+            annotated_image_pers = image_pers.copy()
+            for point in points_persp:
+                point = (point / point[-1]).astype(int)
+                cv2.circle(annotated_image_pers, tuple(point[:-1]), radius=5, color=(255, 0, 0), thickness=5)
+
+            cv2.imwrite(
+                os.path.join(output_path, f"q3_{img_name}_unwarped.png"),
+                image_pers
+            )
+            cv2.imwrite(
+                os.path.join(output_path, f"q3_{img_name}_unwarped_annotated.png"),
+                annotated_image_pers
+            )
             cv2.imwrite(
                 os.path.join(output_path, f"q3_{img_name}_warped.png"),
                 warped_img
