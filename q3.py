@@ -19,7 +19,7 @@ class PointAnno:
     points_normal: np.ndarray
     points_perspective: np.ndarray
 
-def load_point_anno(path, normalize=True):
+def load_point_anno(path):
     obj = np.load(Path(path) / "annotation" / "q3_annotation.npy", allow_pickle=True).item()
     for img_name, points_persp in obj.items():
         img_id = img_name.split("-")[0]
@@ -27,25 +27,6 @@ def load_point_anno(path, normalize=True):
         h, w = img_normal.shape[:-1]
         points_normal = np.array([[0,0,1],[w,0,1],[w,h,1],[0,h,1],])
         points_persp = np.concatenate((points_persp, np.ones_like(points_persp[..., :1])), axis=-1)
-
-        if normalize:
-            points_normal = np.array(
-                    list(
-                        map(
-                            utils.normalize,
-                            points_normal
-                        )
-                    )
-            )
-            points_persp = np.array(
-                list(
-                        map(
-                            utils.normalize,
-                            points_persp
-                        )
-                )
-            )
-
         yield PointAnno(
             img_name,
             img_normal,
